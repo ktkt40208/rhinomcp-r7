@@ -75,12 +75,31 @@ namespace rhinomcp.Serializers
 
         public static JObject SerializeCurve(Curve crv)
         {
+            // Curve.ControlPolygon() is Rhino 8 only. On Rhino 7 derive control
+            // points from the NURBS form, falling back to sampling the domain.
+            var points = new List<Point3d>();
+            var nurbs = crv.ToNurbsCurve();
+            if (nurbs != null)
+            {
+                for (int i = 0; i < nurbs.Points.Count; i++)
+                    points.Add(nurbs.Points[i].Location);
+            }
+            else
+            {
+                const int sampleCount = 10;
+                for (int i = 0; i <= sampleCount; i++)
+                {
+                    var t = crv.Domain.Min + (crv.Domain.Max - crv.Domain.Min) * i / sampleCount;
+                    points.Add(crv.PointAt(t));
+                }
+            }
+
             return new JObject
             {
                 ["type"] = "Curve",
                 ["geometry"] = new JObject
                 {
-                    ["points"] = SerializePoints(crv.ControlPolygon().ToArray()),
+                    ["points"] = SerializePoints(points),
                     ["degree"] = crv.Degree.ToString()
                 }
             };
@@ -152,9 +171,13 @@ namespace rhinomcp.Serializers
             else if (obj.Geometry is Rhino.Geometry.PolylineCurve polyline)
             {
                 objInfo["type"] = "POLYLINE";
+                // PolylineCurve.ToArray() is Rhino 8 only; enumerate points on R7.
+                var plPoints = new List<Point3d>();
+                for (int i = 0; i < polyline.PointCount; i++)
+                    plPoints.Add(polyline.Point(i));
                 objInfo["geometry"] = new JObject
                 {
-                    ["points"] = SerializePoints(polyline.ToArray())
+                    ["points"] = SerializePoints(plPoints)
                 };
             }
             else if (obj.Geometry is Rhino.Geometry.Curve curve)
