@@ -68,16 +68,27 @@ Expect recurring conflicts in `plugin/rhinomcp.csproj` when merging (upstream is
 net48) — keep our net48/RhinoCommon-7 target and take upstream's other changes. New upstream tools
 generally just work once the project still targets net48.
 
-## Known issues to address on the R7 line
+## Already handled upstream (present in `main`)
 
-- **TCP message framing (upstream issue #31):** the bridge has no length-prefix framing, so two
-  commands in one socket read can wedge the connection. The bundled single-socket Python client
-  serialises requests so it rarely bites, but a robust fix exists in the `blazingphoenix7:fix/tcp-framing`
-  branch (4-byte length prefix + backward-compat sniffing, with tests) — recommended to cherry-pick.
-- **Stalled upstream fixes worth pulling:** `blazingphoenix7` PRs #28 (capture_viewport view-mutation),
-  #29 (jsonschema RefResolver deprecation), #30 (wire validate_response).
-- **`execute_rhinocommon_csharp_code`** uses Roslyn scripting (`Microsoft.CodeAnalysis.CSharp.Scripting`)
-  — verify it behaves on .NET Framework 4.8 at runtime.
+Between the survey and this fork, jingcheng merged blazingphoenix7's fixes, so the fork point
+already includes them — no action needed:
+- **TCP message framing (issue #31 / PR #32):** 4-byte length-prefix framing both directions, with
+  backward-compat sniffing for un-framed clients (`server/src/rhinomcp/server.py`).
+- **PR #28** capture_viewport view-restore, **#29** jsonschema `referencing` (RefResolver removed),
+  **#30** `validate_response` wired behind `RHINO_MCP_VALIDATE`.
+- Plus cherry-picked `fix/delete-object-null-name` (delete_object name for unnamed objects).
+
+Validated without Rhino: net48 plugin builds clean; `pytest` (server) = 166 passed; contract
+schema tests = 12 passed.
+
+## Still to verify / do on the R7 line
+
+- **Runtime on real Rhino 7** (the only thing needing a Rhino): plugin loads, `mcpstart`, GH1 tools
+  actually drive Grasshopper 7, and `execute_rhinocommon_csharp_code` (Roslyn scripting) behaves on
+  .NET Framework 4.8.
+- **Optional features available from `blazingphoenix7`** (not yet pulled — opinionated additions):
+  `feat/perception-stage1-change-delta`, `stage2-health` (geometry-health in mutate responses),
+  `stage3-spatial` (`measure_objects` clash/gap), `stage4-capabilities` (`describe_capabilities`).
 
 ## Note on the tool surface
 
